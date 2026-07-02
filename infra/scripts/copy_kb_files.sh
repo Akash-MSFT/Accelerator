@@ -6,6 +6,10 @@ containerName="$2"
 resourceGroupName="$3"
 usecase="$4"
 
+# Resource group that actually hosts the storage account (may differ from the
+# deployment resource group when reusing an existing landing-zone storage account).
+storageResourceGroup="${STORAGE_RESOURCE_GROUP:-$resourceGroupName}"
+
 if [ -z "$usecase" ]; then
 	usecase="telecom"
 fi
@@ -95,7 +99,7 @@ else
     exit 1
 fi
 
-storage_resource_id=$(az storage account show --name "$storageAccountName" --resource-group "$resourceGroupName" --query id --output tsv)
+storage_resource_id=$(az storage account show --name "$storageAccountName" --resource-group "$storageResourceGroup" --query id --output tsv)
 if [ -z "$storage_resource_id" ]; then
     echo "✗ Failed to get storage account resource ID"
     exit 1

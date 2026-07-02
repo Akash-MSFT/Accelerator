@@ -74,58 +74,78 @@ fi
 
 # Note: Environment variables are now passed as parameters from process_sample_data.sh
 
-### Assign Foundry User role to the signed in user for AI Foundry ###
-role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
-if [ -z "$role_assignment" ]; then
-    echo "✓ Assigning Foundry User role for AI Foundry"
-    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --output none
-    if [ $? -ne 0 ]; then
-        echo "✗ Failed to assign Foundry User role for AI Foundry"
-        exit 1
+# Search service may live in a different resource group when reusing existing infra.
+searchResourceGroup="${SEARCH_RESOURCE_GROUP:-$resourceGroupName}"
+search_resource_id=$(az search service show --name $aiSearchName --resource-group $searchResourceGroup --query id --output tsv)
+
+# When running as a pre-provisioned managed identity (e.g. a Container Apps Job) the
+# identity already holds the required data-plane roles and cannot write role
+# assignments itself. Set SKIP_ROLE_ASSIGNMENT=true to skip the self-assignment
+# blocks below. The identity must already have (on AI Foundry): Azure AI Developer
+# (53ca6127-db72-4b80-b1b0-d745d6d5456d) and Cognitive Services OpenAI User
+# (5e0bd9bd-7b93-4f28-af87-19fc36ad61bd); and on AI Search: Search Index Data Contributor.
+if [ "$SKIP_ROLE_ASSIGNMENT" = "true" ]; then
+    echo "↷ SKIP_ROLE_ASSIGNMENT=true - skipping data-plane role self-assignment (using pre-provisioned identity roles)"
+else
+    ### Assign Foundry User role to the signed in user for AI Foundry ###
+    role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
+    if [ -z "$role_assignment" ]; then
+        echo "✓ Assigning Foundry User role for AI Foundry"
+        MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --output none
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to assign Foundry User role for AI Foundry"
+            exit 1
+        fi
     fi
-fi
 
-### Assign Cognitive Services OpenAI User role to the signed in user for AI Foundry ###
-role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
-if [ -z "$role_assignment" ]; then
-    echo "✓ Assigning Cognitive Services OpenAI User role for AI Foundry"
-    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --output none
-    if [ $? -ne 0 ]; then
-        echo "✗ Failed to assign Cognitive Services OpenAI User role for AI Foundry"
-        exit 1
+    ### Assign Cognitive Services OpenAI User role to the signed in user for AI Foundry ###
+    role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
+    if [ -z "$role_assignment" ]; then
+        echo "✓ Assigning Cognitive Services OpenAI User role for AI Foundry"
+        MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --output none
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to assign Cognitive Services OpenAI User role for AI Foundry"
+            exit 1
+        fi
     fi
-fi
 
-### Assign Search Index Data Contributor role to the signed in user ###
-search_resource_id=$(az search service show --name $aiSearchName --resource-group $resourceGroupName --query id --output tsv)
-
-role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Search Index Data Contributor" --scope $search_resource_id --query "[].roleDefinitionId" -o tsv)
-if [ -z "$role_assignment" ]; then
-    echo "✓ Assigning Search Index Data Contributor role"
-    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role "Search Index Data Contributor" --scope $search_resource_id --output none
-    if [ $? -ne 0 ]; then
-        echo "✗ Failed to assign Search Index Data Contributor role"
-        exit 1
+    ### Assign Search Index Data Contributor role to the signed in user ###
+    role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Search Index Data Contributor" --scope $search_resource_id --query "[].roleDefinitionId" -o tsv)
+    if [ -z "$role_assignment" ]; then
+        echo "✓ Assigning Search Index Data Contributor role"
+        MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role "Search Index Data Contributor" --scope $search_resource_id --output none
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to assign Search Index Data Contributor role"
+            exit 1
+        fi
     fi
 fi
 
 
 ### Assign signed in user as SQL Server Admin ###
-sql_server_resource_id=$(az sql server show --name $sqlServerName --resource-group $resourceGroupName --query id --output tsv)
-admin=$(MSYS_NO_PATHCONV=1 az sql server ad-admin list --ids $sql_server_resource_id --query "[?sid == '$signed_user_id']" -o tsv)
+# When reusing a shared SQL server you may only have database-level access and
+# cannot (or must not) set the server AAD admin. Set SKIP_SQL_ADMIN_ASSIGNMENT=true
+# to skip this - assign_sql_roles.py still works if the signed-in user is db_owner.
+if [ "$SKIP_SQL_ADMIN_ASSIGNMENT" = "true" ]; then
+    echo "↷ SKIP_SQL_ADMIN_ASSIGNMENT=true - skipping SQL Server AAD admin assignment (using existing database access)"
+else
+    sqlResourceGroup="${SQL_RESOURCE_GROUP:-$resourceGroupName}"
+    sql_server_resource_id=$(az sql server show --name $sqlServerName --resource-group $sqlResourceGroup --query id --output tsv)
+    admin=$(MSYS_NO_PATHCONV=1 az sql server ad-admin list --ids $sql_server_resource_id --query "[?sid == '$signed_user_id']" -o tsv)
 
-if [ -z "$admin" ]; then
-    echo "✓ Assigning user as SQL Server Admin"
-    MSYS_NO_PATHCONV=1 az sql server ad-admin create --display-name "$signed_user_display_name" --object-id $signed_user_id --resource-group $resourceGroupName --server $sqlServerName --output none
-    if [ $? -ne 0 ]; then
-        echo "✗ Failed to assign SQL Server Admin role"
-        exit 1
+    if [ -z "$admin" ]; then
+        echo "✓ Assigning user as SQL Server Admin"
+        MSYS_NO_PATHCONV=1 az sql server ad-admin create --display-name "$signed_user_display_name" --object-id $signed_user_id --resource-group $sqlResourceGroup --server $sqlServerName --output none
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to assign SQL Server Admin role"
+            exit 1
+        fi
     fi
 fi
 
 # Install the requirements
 echo "Installing requirements"
-pip install --quiet -r ${pythonScriptPath}requirements.txt
+pip install --quiet -r "${pythonScriptPath}requirements.txt"
 if [ $? -ne 0 ]; then
     echo "Error: Failed to install Python requirements."
     exit 1
@@ -134,14 +154,14 @@ fi
 error_flag=false
 
 echo "✓ Creating search index"
-python ${pythonScriptPath}01_create_search_index.py --search_endpoint="$search_endpoint" --openai_endpoint="$openai_endpoint" --embedding_model="$embedding_model"
+python "${pythonScriptPath}01_create_search_index.py" --search_endpoint="$search_endpoint" --openai_endpoint="$openai_endpoint" --embedding_model="$embedding_model"
 if [ $? -ne 0 ]; then
     echo "Error: 01_create_search_index.py failed."
     error_flag=true
 fi
 
 echo "✓ Creating CU template for text"
-python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
+python "${pythonScriptPath}02_create_cu_template_text.py" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_text.py failed."
     error_flag=true
@@ -149,7 +169,7 @@ fi
 
 if [ "$usecase" == "telecom" ]; then
     echo "✓ Creating CU template for audio"
-    python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
+    python "${pythonScriptPath}02_create_cu_template_audio.py" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
     if [ $? -ne 0 ]; then
         echo "Error: 02_create_cu_template_audio.py failed."
         error_flag=true
@@ -158,7 +178,7 @@ fi
 
 echo "✓ Processing data with CU"
 sql_server_fqdn="$sqlServerName.database.windows.net"
-python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase" --solution_name="$solution_name"
+python "${pythonScriptPath}03_cu_process_data_text.py" --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase" --solution_name="$solution_name"
 if [ $? -ne 0 ]; then
     echo "Error: 03_cu_process_data_text.py failed."
     error_flag=true

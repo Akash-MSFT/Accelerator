@@ -285,25 +285,32 @@ else
 fi
 
 # Check if the principal has Foundry User role on the AI Foundry
-role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list \
-  --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
-  --scope "$aiFoundryResourceId" \
-  --assignee "$signed_user_id" \
-  --query "[].roleDefinitionId" -o tsv)
-
-if [ -z "$role_assignment" ]; then
-    echo "✓ Assigning Foundry User role for AI Foundry"
-    MSYS_NO_PATHCONV=1 az role assignment create \
-      --assignee "$signed_user_id" \
+# When running as a pre-provisioned managed identity (e.g. a Container Apps Job) the
+# identity already holds the Azure AI Developer (Foundry User) role and cannot write
+# role assignments itself. Set SKIP_ROLE_ASSIGNMENT=true to skip this block.
+if [ "$SKIP_ROLE_ASSIGNMENT" = "true" ]; then
+    echo "↷ SKIP_ROLE_ASSIGNMENT=true - skipping Foundry User role self-assignment (using pre-provisioned identity roles)"
+else
+    role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list \
       --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
       --scope "$aiFoundryResourceId" \
-      --output none
-    if [ $? -ne 0 ]; then
-        echo "✗ Failed to assign Foundry User role for AI Foundry"
-        exit 1
+      --assignee "$signed_user_id" \
+      --query "[].roleDefinitionId" -o tsv)
+
+    if [ -z "$role_assignment" ]; then
+        echo "✓ Assigning Foundry User role for AI Foundry"
+        MSYS_NO_PATHCONV=1 az role assignment create \
+          --assignee "$signed_user_id" \
+          --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
+          --scope "$aiFoundryResourceId" \
+          --output none
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to assign Foundry User role for AI Foundry"
+            exit 1
+        fi
+    else
+        echo "✓ Principal already has the Foundry User role"
     fi
-else
-    echo "✓ Principal already has the Foundry User role"
 fi
 
 
@@ -349,11 +356,11 @@ EOF
 
 echo "Agents creation completed."
 
-# Update environment variables of API App
-az webapp config appsettings set \
+# Update environment variables of the backend Container App (triggers a new revision)
+az containerapp update \
   --resource-group "$resourceGroup" \
   --name "$apiAppName" \
-  --settings AGENT_NAME_CONVERSATION="$conversationAgentName" AGENT_NAME_TITLE="$titleAgentName" \
+  --set-env-vars AGENT_NAME_CONVERSATION="$conversationAgentName" AGENT_NAME_TITLE="$titleAgentName" \
   -o none
 
 if command -v azd >/dev/null 2>&1; then
@@ -362,4 +369,4 @@ if command -v azd >/dev/null 2>&1; then
 else
   echo "Warning: 'azd' CLI not found. Skipping 'azd env set' for AGENT_NAME_CONVERSATION and AGENT_NAME_TITLE."
 fi
-echo "Environment variables updated for App Service: $apiAppName"
+echo "Environment variables updated for Container App: $apiAppName"

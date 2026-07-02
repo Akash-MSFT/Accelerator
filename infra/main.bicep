@@ -17,6 +17,7 @@ param solutionName string = 'kmgen'
   'northeurope'
   'southeastasia'
   'uksouth'
+  'westeurope'
 ])
 param location string
 
@@ -622,7 +623,7 @@ module avmPrivateDnsZones 'br/public:avm/res/network/private-dns-zone:0.8.0' = [
 // WAF best practices for identity and access management: https://learn.microsoft.com/en-us/azure/well-architected/security/identity-access
 
 // ========== User Assigned Identity ========== //
-var userAssignedIdentityResourceName = 'id-${solutionSuffix}'
+var userAssignedIdentityResourceName = 'umi-digitalmfg-deployment-rpsi-dev-weu-01'
 module userAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.3' = {
   name: take('avm.res.managed-identity.user-assigned-identity.${userAssignedIdentityResourceName}', 64)
   params: {
@@ -635,7 +636,7 @@ module userAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-id
 
 // ========== SQL Operations User Assigned Identity ========== //
 // Dedicated identity for backend SQL operations with limited permissions (db_datareader, db_datawriter)
-var backendUserAssignedIdentityResourceName = 'id-backend-${solutionSuffix}'
+var backendUserAssignedIdentityResourceName = 'umi-digitalmfg-backend-rpsi-dev-weu-01'
 module backendUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.3' = {
   name: take('avm.res.managed-identity.user-assigned-identity.${backendUserAssignedIdentityResourceName}', 64)
   params: {
@@ -664,12 +665,12 @@ var aiFoundryAiServicesResourceGroupName = useExistingAiFoundryAiProject
   : 'rg-${solutionSuffix}'
 var aiFoundryAiServicesResourceName = useExistingAiFoundryAiProject
   ? split(existingAiFoundryAiProjectResourceId, '/')[8]
-  : 'aif-${solutionSuffix}'
+  : 'aif-digitalmfg-rpsi-dev-weu-01'
 var aiFoundryAiProjectResourceName = useExistingAiFoundryAiProject
   ? split(existingAiFoundryAiProjectResourceId, '/')[10]
-  : 'proj-${solutionSuffix}' 
+  : 'proj-digitalmfg-rpsi-dev-weu-01' 
 
-var aiFoundryAiServicesAiProjectResourceName = 'proj-${solutionSuffix}'
+var aiFoundryAiServicesAiProjectResourceName = 'proj-digitalmfg-rpsi-dev-weu-01'
 var aiModelDeployments = [
   {
     name: gptModelName
@@ -821,7 +822,7 @@ module aiFoundryPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.
 
 // ========== AVM WAF ========== //
 // ========== AI Foundry: AI Search ========== //
-var aiSearchName = 'srch-${solutionSuffix}'
+var aiSearchName = 'srch-digitalmfg-rpsi-dev-weu-01'
 var aiSearchConnectionName = 'foundry-search-connection-${solutionSuffix}'
 
 resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
@@ -972,7 +973,7 @@ module searchServiceToExistingAiServicesRoleAssignment 'modules/role-assignment.
 }
 
 // ========== Storage account module ========== //
-var storageAccountName = 'st${solutionSuffix}'
+var storageAccountName = 'stdigitalmfgrpsidweu01'
 module storageAccount 'br/public:avm/res/storage/storage-account:0.31.0' = {
   name: take('avm.res.storage.storage-account.${storageAccountName}', 64)
   params: {
@@ -1088,7 +1089,7 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.31.0' = {
 }
 
 //========== Cosmos DB module ========== //
-var cosmosDbResourceName = 'cosmos-${solutionSuffix}'
+var cosmosDbResourceName = 'cosmos-digitalmfg-rpsi-dev-weu-01'
 var cosmosDbDatabaseName = 'db_conversation_history'
 var collectionName = 'conversations'
 module cosmosDb 'br/public:avm/res/document-db/database-account:0.18.0' = {
@@ -1175,8 +1176,8 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.18.0' = {
 }
 
 //========== SQL Database module ========== //
-var sqlServerResourceName = 'sql-${solutionSuffix}'
-var sqlDbModuleName = 'sqldb-${solutionSuffix}'
+var sqlServerResourceName = 'sql-cm02dbsd0007'
+var sqlDbModuleName = 'sqldb-digitalmfg-rpsi-dev-weu-01'
 module sqlDBModule 'br/public:avm/res/sql/server:0.21.1' = {
   name: take('avm.res.sql.server.${sqlServerResourceName}', 64)
   params: {
@@ -1270,26 +1271,16 @@ module sqlDbPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.1' 
   }
 }
 
-// ========== AVM WAF server farm ========== //
-// WAF best practices for Web Application Services: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/app-service-web-apps
-// PSRule for Web Server Farm: https://azure.github.io/PSRule.Rules.Azure/en/rules/resource/#app-service
-var webServerFarmResourceName = 'asp-${solutionSuffix}'
-module webServerFarm 'br/public:avm/res/web/serverfarm:0.5.0' = {
-  name: 'deploy_app_service_plan_serverfarm'
-  params: {
-    name: webServerFarmResourceName
-    tags: tags
-    enableTelemetry: enableTelemetry
-    location: location
-    reserved: true
-    kind: 'linux'
-    // WAF aligned configuration for Monitoring
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-    // WAF aligned configuration for Scalability
-    skuName: enableScalability || enableRedundancy ? 'P1v3' : 'B3'
-    skuCapacity: enableScalability ? 1 : 1
+// ========== Container Apps Environment ========== //
+// Managed serverless compute boundary that hosts the frontend and backend container apps.
+var containerAppEnvironmentName = 'cae-digitalmfg-rpsi-dev-weu-01'
+resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
+  name: containerAppEnvironmentName
+  location: location
+  tags: tags
+  properties: {
     // WAF aligned configuration for Redundancy
-    zoneRedundant: enableRedundancy ? true : false
+    zoneRedundant: enableRedundancy
   }
 }
 
@@ -1357,124 +1348,133 @@ var reactAppLayoutConfig = '''{
   ]
 }'''
 
-// ========== Web App module ========== //
-var backendWebSiteResourceName = 'api-${solutionSuffix}'
-module webSiteBackend 'modules/web-sites.bicep' = {
-  name: take('module.web-sites.${backendWebSiteResourceName}', 64)
-  params: {
-    name: backendWebSiteResourceName
-    tags: tags
-    location: location
-    kind: 'app,linux,container'
-    serverFarmResourceId: webServerFarm.?outputs.resourceId
-    managedIdentities: {
-      systemAssigned: true
-      userAssignedResourceIds: [
-        backendUserAssignedIdentity.outputs.resourceId
-      ]
+// ========== Backend Container App ========== //
+// Hosts the FastAPI API; runs chat orchestration, SQL queries, and agent calls.
+var backendContainerAppName = 'ca-digitalmfg-be-rpsi-dev-weu-01'
+resource backendContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
+  name: backendContainerAppName
+  location: location
+  tags: tags
+  identity: {
+    type: 'SystemAssigned, UserAssigned'
+    userAssignedIdentities: {
+      '${resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', backendUserAssignedIdentityResourceName)}': {}
     }
-    siteConfig: {
-      linuxFxVersion: 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}'
-      minTlsVersion: '1.2'
-    }
-    configs: [
-      {
-        name: 'appsettings'
-        properties: {
-          REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
-          AGENT_NAME_CONVERSATION: ''
-          AGENT_NAME_TITLE: ''
-          API_APP_NAME: 'api-${solutionSuffix}'
-          AI_FOUNDRY_RESOURCE_ID: aiFoundryAiServices.outputs.resourceId
-          AZURE_AI_AGENT_ENDPOINT: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint
-          AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
-          AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
-          USE_CHAT_HISTORY_ENABLED: 'True'
-          AZURE_COSMOSDB_ACCOUNT: cosmosDb.outputs.name
-          AZURE_COSMOSDB_CONVERSATIONS_CONTAINER: collectionName
-          AZURE_COSMOSDB_DATABASE: cosmosDbDatabaseName
-          AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
-          SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
-          SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
-          SQLDB_USER_MID: backendUserAssignedIdentity.outputs.clientId
-          AZURE_AI_SEARCH_ENDPOINT: 'https://${aiSearchName}.search.windows.net'
-          AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
-          AZURE_AI_SEARCH_CONNECTION_NAME: aiSearchName
-          USE_AI_PROJECT_CLIENT: 'True'
-          DISPLAY_CHART_DEFAULT: 'False'
-          APPLICATIONINSIGHTS_CONNECTION_STRING: enableMonitoring ? applicationInsights!.outputs.connectionString : ''
-          DUMMY_TEST: 'True'
-          SOLUTION_NAME: solutionSuffix
-          APP_ENV: 'Prod'
-          AZURE_CLIENT_ID: backendUserAssignedIdentity.outputs.clientId
-          AZURE_BASIC_LOGGING_LEVEL: 'INFO'
-          AZURE_PACKAGE_LOGGING_LEVEL: 'WARNING'
-          AZURE_LOGGING_PACKAGES: ''
-        }
-        // WAF aligned configuration for Monitoring
-        applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
-      }
-    ]
-    e2eEncryptionEnabled: true
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-    // WAF aligned configuration for Private Networking
-    vnetRouteAllEnabled: enablePrivateNetworking ? true : false
-    vnetImagePullEnabled: enablePrivateNetworking ? true : false
-    virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
-    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: enablePrivateNetworking
-      ? [
+  }
+  properties: {
+    managedEnvironmentId: containerAppEnvironment.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true
+        targetPort: 80
+        transport: 'auto'
+        allowInsecure: false
+        traffic: [
           {
-            name: 'pep-${backendWebSiteResourceName}'
-            customNetworkInterfaceName: 'nic-${backendWebSiteResourceName}'
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.webApp]!.outputs.resourceId }
-              ]
-            }
-            service: 'sites'
-            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+            latestRevision: true
+            weight: 100
           }
         ]
-      : []
+      }
+    }
+    template: {
+      containers: [
+        {
+          image: '${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}'
+          name: backendContainerImageName
+          resources: {
+            cpu: json('1.0')
+            memory: '2.0Gi'
+          }
+          env: [
+            { name: 'REACT_APP_LAYOUT_CONFIG', value: reactAppLayoutConfig }
+            { name: 'AGENT_NAME_CONVERSATION', value: '' }
+            { name: 'AGENT_NAME_TITLE', value: '' }
+            { name: 'API_APP_NAME', value: backendContainerAppName }
+            { name: 'AI_FOUNDRY_RESOURCE_ID', value: aiFoundryAiServices.outputs.resourceId }
+            { name: 'AZURE_AI_AGENT_ENDPOINT', value: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint }
+            { name: 'AZURE_AI_AGENT_API_VERSION', value: azureAiAgentApiVersion }
+            { name: 'AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME', value: gptModelName }
+            { name: 'USE_CHAT_HISTORY_ENABLED', value: 'True' }
+            { name: 'AZURE_COSMOSDB_ACCOUNT', value: cosmosDb.outputs.name }
+            { name: 'AZURE_COSMOSDB_CONVERSATIONS_CONTAINER', value: collectionName }
+            { name: 'AZURE_COSMOSDB_DATABASE', value: cosmosDbDatabaseName }
+            { name: 'AZURE_COSMOSDB_ENABLE_FEEDBACK', value: 'True' }
+            { name: 'SQLDB_DATABASE', value: sqlDbModuleName }
+            { name: 'SQLDB_SERVER', value: '${sqlDBModule.outputs.name}${environment().suffixes.sqlServerHostname}' }
+            { name: 'SQLDB_USER_MID', value: backendUserAssignedIdentity.outputs.clientId }
+            { name: 'AZURE_AI_SEARCH_ENDPOINT', value: 'https://${aiSearchName}.search.windows.net' }
+            { name: 'AZURE_AI_SEARCH_INDEX', value: 'call_transcripts_index' }
+            { name: 'AZURE_AI_SEARCH_CONNECTION_NAME', value: aiSearchName }
+            { name: 'USE_AI_PROJECT_CLIENT', value: 'True' }
+            { name: 'DISPLAY_CHART_DEFAULT', value: 'False' }
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: enableMonitoring ? applicationInsights!.outputs.connectionString : '' }
+            { name: 'DUMMY_TEST', value: 'True' }
+            { name: 'SOLUTION_NAME', value: solutionSuffix }
+            { name: 'APP_ENV', value: 'Prod' }
+            { name: 'AZURE_CLIENT_ID', value: backendUserAssignedIdentity.outputs.clientId }
+            { name: 'AZURE_BASIC_LOGGING_LEVEL', value: 'INFO' }
+            { name: 'AZURE_PACKAGE_LOGGING_LEVEL', value: 'WARNING' }
+            { name: 'AZURE_LOGGING_PACKAGES', value: '' }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1
+        maxReplicas: enableScalability ? 3 : 1
+      }
+    }
   }
 }
 
-// ========== Web App module ========== //
-// WAF best practices for Web Application Services: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/app-service-web-apps
-//NOTE: AVM module adds 1 MB of overhead to the template. Keeping vanilla resource to save template size.
-var webSiteResourceName = 'app-${solutionSuffix}'
-module webSiteFrontend 'modules/web-sites.bicep' = {
-  name: take('module.web-sites.${webSiteResourceName}', 64)
-  params: {
-    name: webSiteResourceName
-    tags: tags
-    location: location
-    kind: 'app,linux,container'
-    serverFarmResourceId: webServerFarm.outputs.resourceId
-    managedIdentities: {
-      systemAssigned: true
-    }
-    siteConfig: {
-      linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}'
-      minTlsVersion: '1.2'
-    }
-    configs: [
-      {
-        name: 'appsettings'
-        properties: {
-          APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
-          BACKEND_API_HOST: enablePrivateNetworking ? 'api-${solutionSuffix}.azurewebsites.net' : ''
-        }
-        applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
+// ========== Frontend Container App ========== //
+// Hosts the React web UI (chat + dashboard) the end user interacts with.
+var frontendContainerAppName = 'ca-digitalmfg-fe-rpsi-dev-weu-01'
+resource frontendContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
+  name: frontendContainerAppName
+  location: location
+  tags: tags
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    managedEnvironmentId: containerAppEnvironment.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true
+        targetPort: 80
+        transport: 'auto'
+        allowInsecure: false
+        traffic: [
+          {
+            latestRevision: true
+            weight: 100
+          }
+        ]
       }
-    ]
-    e2eEncryptionEnabled: true
-    vnetRouteAllEnabled: enablePrivateNetworking ? true : false
-    vnetImagePullEnabled: enablePrivateNetworking ? true : false
-    virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-    publicNetworkAccess: 'Enabled'
+    }
+    template: {
+      containers: [
+        {
+          image: '${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}'
+          name: frontendContainerImageName
+          resources: {
+            cpu: json('1.0')
+            memory: '2.0Gi'
+          }
+          env: [
+            { name: 'APP_API_BASE_URL', value: 'https://${backendContainerApp.properties.configuration.ingress.fqdn}' }
+            { name: 'BACKEND_API_HOST', value: '' }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1
+        maxReplicas: enableScalability ? 3 : 1
+      }
+    }
   }
 }
 
@@ -1558,7 +1558,7 @@ output AZURE_OPENAI_RESOURCE string = aiFoundryAiServices.outputs.name
 output REACT_APP_LAYOUT_CONFIG string = reactAppLayoutConfig
 
 @description('Contains SQL database name.')
-output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
+output SQLDB_DATABASE string = sqlDbModuleName
 
 @description('Contains SQL server name.')
 output SQLDB_SERVER string = '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
@@ -1594,10 +1594,10 @@ output AZURE_ENV_IMAGE_TAG string = backendContainerImageTag
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? applicationInsights!.outputs.connectionString : ''
 
 @description('Contains API application URL.')
-output API_APP_URL string = 'https://api-${solutionSuffix}.azurewebsites.net'
+output API_APP_URL string = 'https://${backendContainerApp.properties.configuration.ingress.fqdn}'
 
 @description('Contains web application URL.')
-output WEB_APP_URL string = 'https://app-${solutionSuffix}.azurewebsites.net'
+output WEB_APP_URL string = 'https://${frontendContainerApp.properties.configuration.ingress.fqdn}'
 
 @description('Name of the Storage Account.')
 output STORAGE_ACCOUNT_NAME string = storageAccount.outputs.name
@@ -1612,7 +1612,7 @@ output AI_FOUNDRY_RESOURCE_ID string = aiFoundryAiServices.outputs.resourceId
 output AZURE_OPENAI_CU_ENDPOINT string = aiFoundryAiServices.outputs.endpoints['Content Understanding']
 
 @description('Contains API application name.')
-output API_APP_NAME string = 'api-${solutionSuffix}'
+output API_APP_NAME string = backendContainerAppName
 
 @description('Contains Conversation Agent name.')
 output AGENT_NAME_CONVERSATION string = ''

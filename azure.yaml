@@ -3,7 +3,7 @@
 #     template: azd-init@1.11.1
 environment:
   name: conversation-knowledge-mining
-  location: eastus
+  location: westeurope
 name: conversation-knowledge-mining
 
 requiredVersions:
@@ -11,6 +11,11 @@ requiredVersions:
 
 metadata:
   template: conversation-knowledge-mining@1.0
+
+infra:
+  provider: bicep
+  path: infra
+  module: main_reuse
 
 hooks:
   postprovision:

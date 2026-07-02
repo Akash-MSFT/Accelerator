@@ -51,6 +51,13 @@ original_full_range_rule_present="false"
 
 # Function to enable public network access temporarily
 enable_public_access() {
+	# When running from inside the VNet (e.g. a jumpbox), resources are reachable
+	# via private endpoints and public-access toggles are unnecessary (and may be
+	# blocked by policy). Set SKIP_NETWORK_TOGGLE=true to skip them entirely.
+	if [ "$SKIP_NETWORK_TOGGLE" = "true" ]; then
+		echo "↷ SKIP_NETWORK_TOGGLE=true - skipping public network access changes (using private endpoints)"
+		return 0
+	fi
 	
 	# Enable public access for Storage Account
 	original_storage_public_access=$(az storage account show \
@@ -192,6 +199,9 @@ enable_public_access() {
 
 # Function to restore original network access settings
 restore_network_access() {
+	if [ "$SKIP_NETWORK_TOGGLE" = "true" ]; then
+		return 0
+	fi
 	
 	# Restore Storage Account access
 	if [ -n "$original_storage_public_access" ] && [ "$original_storage_public_access" != "Enabled" ]; then
