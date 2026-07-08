@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "value": "westeurope" },
+    "deployRbac": { "value": false },
+
+    "backendContainerAppName": { "value": "ca-macae-be-rpsi-dev-weu-01" },
+    "mcpContainerAppName": { "value": "ca-macae-mcp-rpsi-dev-weu-01" },
+    "frontendContainerAppName": { "value": "ca-macae-fe-rpsi-dev-weu-01" },
+
+    "coreResourceGroupName": { "value": "rg-core-foundry-rpsi-dev-weu-01" },
+    "managedEnvironmentDefaultDomain": { "value": "purplebay-8719396f.westeurope.azurecontainerapps.io" },
+
+    "userAssignedIdentityName": { "value": "uai-aci-pull-digitalmfg-rpsi-dev-weu-01" },
+    "userAssignedIdentityClientId": { "value": "38ab20d0-2349-4503-b63a-4152af0b90ed" },
+    "userAssignedIdentityPrincipalId": { "value": "5729970b-6f81-4dd9-996b-4f433369aaab" },
+
+    "acrLoginServer": { "value": "acrdigitalmfgrpsidweu01.azurecr.io" },
+    "backendImage": { "value": "macae-backend:reuse-1" },
+    "mcpImage": { "value": "macae-mcp:reuse-2" },
+    "frontendImage": { "value": "macae-frontend:reuse-1" },
+
+    "aiFoundryName": { "value": "aif-foundry-rpsi-dev-weu-01" },
+    "aiFoundryProjectName": { "value": "DigitalManufacturing" },
+    "aiFoundryProjectEndpoint": { "value": "https://aif-foundry-rpsi-dev-weu-01.services.ai.azure.com/api/projects/DigitalManufacturing" },
+    "azureOpenAiEndpoint": { "value": "https://aif-foundry-rpsi-dev-weu-01.openai.azure.com/" },
+
+    "openAiModelDeploymentName": { "value": "gpt-5-mini" },
+    "openAiRaiDeploymentName": { "value": "gpt-5-chat" },
+    "reasoningModelDeploymentName": { "value": "gpt-5-mini" },
+    "supportedModels": { "value": "[\"gpt-5-mini\",\"gpt-5-chat\",\"gpt-5.5\"]" },
+
+    "cosmosAccountName": { "value": "cosmos-foundry-rpsi-dev-weu-01" },
+    "cosmosDatabaseName": { "value": "macae" },
+    "cosmosContainerName": { "value": "memory" },
+    "cosmosEndpoint": { "value": "https://cosmos-foundry-rpsi-dev-weu-01.documents.azure.com:443/" },
+
+    "searchServiceName": { "value": "srch-foundry-rpsi-dev-weu-01" },
+    "searchEndpoint": { "value": "https://srch-foundry-rpsi-dev-weu-01.search.windows.net" },
+    "aiSearchConnectionName": { "value": "srchfoundryrpsidevweuz7toiu" },
+
+    "storageAccountName": { "value": "stfoundryrpsidweu01" },
+    "storageBlobUrl": { "value": "https://stfoundryrpsidweu01.blob.core.windows.net/" }
+  }
+}

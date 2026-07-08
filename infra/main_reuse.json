@@ -1,0 +1,860 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "13442633058341435170"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "westeurope",
+      "metadata": {
+        "description": "Azure region for the new app-layer resources. West Europe for RPSI."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+        "application": "macae",
+        "environment": "dev",
+        "landingzone": "rpsi"
+      },
+      "metadata": {
+        "description": "Tags applied to created resources."
+      }
+    },
+    "deployRbac": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Second pass toggle. false = create apps only; true = also assign RBAC on reused resources."
+      }
+    },
+    "backendContainerAppName": {
+      "type": "string",
+      "defaultValue": "ca-macae-be-rpsi-dev-weu-01"
+    },
+    "mcpContainerAppName": {
+      "type": "string",
+      "defaultValue": "ca-macae-mcp-rpsi-dev-weu-01"
+    },
+    "frontendContainerAppName": {
+      "type": "string",
+      "defaultValue": "ca-macae-fe-rpsi-dev-weu-01"
+    },
+    "managedEnvironmentResourceId": {
+      "type": "string",
+      "defaultValue": "[resourceId('rg-core-foundry-rpsi-dev-weu-01', 'Microsoft.App/managedEnvironments', 'cae-foundry-rpsi-dev-weu-01')]",
+      "metadata": {
+        "description": "Resource ID of the EXISTING internal Container Apps Environment to reuse."
+      }
+    },
+    "managedEnvironmentDefaultDomain": {
+      "type": "string",
+      "defaultValue": "purplebay-8719396f.westeurope.azurecontainerapps.io",
+      "metadata": {
+        "description": "Default domain of the EXISTING Container Apps Environment (used to build internal FQDNs for CORS)."
+      }
+    },
+    "userAssignedIdentityName": {
+      "type": "string",
+      "defaultValue": "uai-aci-pull-digitalmfg-rpsi-dev-weu-01",
+      "metadata": {
+        "description": "Name of the EXISTING User-Assigned Identity used for ACR pull + data-plane auth."
+      }
+    },
+    "userAssignedIdentityClientId": {
+      "type": "string",
+      "defaultValue": "38ab20d0-2349-4503-b63a-4152af0b90ed",
+      "metadata": {
+        "description": "Client (application) ID of the reused UAI."
+      }
+    },
+    "userAssignedIdentityPrincipalId": {
+      "type": "string",
+      "defaultValue": "5729970b-6f81-4dd9-996b-4f433369aaab",
+      "metadata": {
+        "description": "Principal (object) ID of the reused UAI (for RBAC assignments)."
+      }
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "defaultValue": "acrdigitalmfgrpsidweu01.azurecr.io"
+    },
+    "backendImage": {
+      "type": "string",
+      "defaultValue": "macae-backend:reuse-1"
+    },
+    "mcpImage": {
+      "type": "string",
+      "defaultValue": "macae-mcp:reuse-1"
+    },
+    "frontendImage": {
+      "type": "string",
+      "defaultValue": "macae-frontend:reuse-1"
+    },
+    "coreResourceGroupName": {
+      "type": "string",
+      "defaultValue": "rg-core-foundry-rpsi-dev-weu-01"
+    },
+    "aiFoundryName": {
+      "type": "string",
+      "defaultValue": "aif-foundry-rpsi-dev-weu-01"
+    },
+    "aiFoundryProjectName": {
+      "type": "string",
+      "defaultValue": "DigitalManufacturing"
+    },
+    "aiFoundryProjectEndpoint": {
+      "type": "string",
+      "defaultValue": "https://aif-foundry-rpsi-dev-weu-01.services.ai.azure.com/api/projects/DigitalManufacturing",
+      "metadata": {
+        "description": "Foundry AI project endpoint used by the Agent SDK."
+      }
+    },
+    "azureOpenAiEndpoint": {
+      "type": "string",
+      "defaultValue": "https://aif-foundry-rpsi-dev-weu-01.openai.azure.com/",
+      "metadata": {
+        "description": "Azure OpenAI endpoint of the reused Foundry account."
+      }
+    },
+    "openAiModelDeploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-5-mini",
+      "metadata": {
+        "description": "Primary chat model deployment name."
+      }
+    },
+    "openAiRaiDeploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-5-chat",
+      "metadata": {
+        "description": "Deployment used for RAI / secondary generation."
+      }
+    },
+    "reasoningModelDeploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-5-mini",
+      "metadata": {
+        "description": "Reasoning model deployment name."
+      }
+    },
+    "supportedModels": {
+      "type": "string",
+      "defaultValue": "[[\"gpt-5-mini\",\"gpt-5-chat\",\"gpt-5.5\"]",
+      "metadata": {
+        "description": "JSON array of models the app should surface in the UI."
+      }
+    },
+    "azureOpenaiApiVersion": {
+      "type": "string",
+      "defaultValue": "2025-01-01-preview"
+    },
+    "azureAiAgentApiVersion": {
+      "type": "string",
+      "defaultValue": "2025-05-01"
+    },
+    "cosmosAccountName": {
+      "type": "string",
+      "defaultValue": "cosmos-foundry-rpsi-dev-weu-01"
+    },
+    "cosmosDatabaseName": {
+      "type": "string",
+      "defaultValue": "macae"
+    },
+    "cosmosContainerName": {
+      "type": "string",
+      "defaultValue": "memory"
+    },
+    "cosmosEndpoint": {
+      "type": "string",
+      "defaultValue": "https://cosmos-foundry-rpsi-dev-weu-01.documents.azure.com:443/"
+    },
+    "searchServiceName": {
+      "type": "string",
+      "defaultValue": "srch-foundry-rpsi-dev-weu-01"
+    },
+    "searchEndpoint": {
+      "type": "string",
+      "defaultValue": "https://srch-foundry-rpsi-dev-weu-01.search.windows.net"
+    },
+    "aiSearchConnectionName": {
+      "type": "string",
+      "defaultValue": "srchfoundryrpsidevweuz7toiu"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "stfoundryrpsidweu01"
+    },
+    "storageBlobUrl": {
+      "type": "string",
+      "defaultValue": "https://stfoundryrpsidweu01.blob.core.windows.net/"
+    },
+    "extraHosts": {
+      "type": "string",
+      "defaultValue": "10.22.144.134 cosmos-foundry-rpsi-dev-weu-01.documents.azure.com\r\n10.22.144.135 cosmos-foundry-rpsi-dev-weu-01-westeurope.documents.azure.com\r\n10.22.144.138 aif-foundry-rpsi-dev-weu-01.services.ai.azure.com\r\n10.22.144.137 aif-foundry-rpsi-dev-weu-01.openai.azure.com\r\n10.22.144.136 aif-foundry-rpsi-dev-weu-01.cognitiveservices.azure.com\r\n10.22.144.133 srch-foundry-rpsi-dev-weu-01.search.windows.net\r\n10.22.144.132 stfoundryrpsidweu01.blob.core.windows.net"
+    }
+  },
+  "variables": {
+    "frontendInternalFqdn": "[format('{0}.internal.{1}', parameters('frontendContainerAppName'), parameters('managedEnvironmentDefaultDomain'))]",
+    "frontendOrigin": "[format('https://{0}', variables('frontendInternalFqdn'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('mcpContainerAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName')))]": {}
+        }
+      },
+      "properties": {
+        "managedEnvironmentId": "[parameters('managedEnvironmentResourceId')]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": false,
+            "targetPort": 9000,
+            "transport": "auto",
+            "allowInsecure": false
+          },
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName'))]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "mcp",
+              "image": "[format('{0}/{1}', parameters('acrLoginServer'), parameters('mcpImage'))]",
+              "resources": {
+                "cpu": "[json('2.0')]",
+                "memory": "4.0Gi"
+              },
+              "env": [
+                {
+                  "name": "HOST",
+                  "value": "0.0.0.0"
+                },
+                {
+                  "name": "PORT",
+                  "value": "9000"
+                },
+                {
+                  "name": "DEBUG",
+                  "value": "false"
+                },
+                {
+                  "name": "SERVER_NAME",
+                  "value": "MacaeMcpServer"
+                },
+                {
+                  "name": "ENABLE_AUTH",
+                  "value": "false"
+                },
+                {
+                  "name": "TENANT_ID",
+                  "value": "[tenant().tenantId]"
+                },
+                {
+                  "name": "CLIENT_ID",
+                  "value": "[parameters('userAssignedIdentityClientId')]"
+                },
+                {
+                  "name": "JWKS_URI",
+                  "value": "[format('https://login.microsoftonline.com/{0}/discovery/v2.0/keys', tenant().tenantId)]"
+                },
+                {
+                  "name": "ISSUER",
+                  "value": "[format('https://sts.windows.net/{0}/', tenant().tenantId)]"
+                },
+                {
+                  "name": "AUDIENCE",
+                  "value": "[format('api://{0}', parameters('userAssignedIdentityClientId'))]"
+                },
+                {
+                  "name": "DATASET_PATH",
+                  "value": "./datasets"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 1
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('backendContainerAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName')))]": {}
+        }
+      },
+      "properties": {
+        "managedEnvironmentId": "[parameters('managedEnvironmentResourceId')]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": false,
+            "targetPort": 8000,
+            "transport": "auto",
+            "allowInsecure": false,
+            "corsPolicy": {
+              "allowedOrigins": [
+                "[variables('frontendOrigin')]"
+              ],
+              "allowedMethods": [
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "OPTIONS"
+              ]
+            }
+          },
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName'))]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "backend",
+              "image": "[format('{0}/{1}', parameters('acrLoginServer'), parameters('backendImage'))]",
+              "resources": {
+                "cpu": "[json('2.0')]",
+                "memory": "4.0Gi"
+              },
+              "env": [
+                {
+                  "name": "COSMOSDB_ENDPOINT",
+                  "value": "[parameters('cosmosEndpoint')]"
+                },
+                {
+                  "name": "COSMOSDB_DATABASE",
+                  "value": "[parameters('cosmosDatabaseName')]"
+                },
+                {
+                  "name": "COSMOSDB_CONTAINER",
+                  "value": "[parameters('cosmosContainerName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_ENDPOINT",
+                  "value": "[parameters('azureOpenAiEndpoint')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_MODEL_NAME",
+                  "value": "[parameters('openAiModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_DEPLOYMENT_NAME",
+                  "value": "[parameters('openAiModelDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_RAI_DEPLOYMENT_NAME",
+                  "value": "[parameters('openAiRaiDeploymentName')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_API_VERSION",
+                  "value": "[parameters('azureOpenaiApiVersion')]"
+                },
+                {
+                  "name": "AZURE_AI_SUBSCRIPTION_ID",
+                  "value": "[subscription().subscriptionId]"
+                },
+                {
+                  "name": "AZURE_AI_RESOURCE_GROUP",
+                  "value": "[parameters('coreResourceGroupName')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_NAME",
+                  "value": "[parameters('aiFoundryProjectName')]"
+                },
+                {
+                  "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                  "value": ""
+                },
+                {
+                  "name": "APPLICATIONINSIGHTS_INSTRUMENTATION_KEY",
+                  "value": ""
+                },
+                {
+                  "name": "FRONTEND_SITE_NAME",
+                  "value": "[variables('frontendOrigin')]"
+                },
+                {
+                  "name": "AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME",
+                  "value": "[parameters('openAiModelDeploymentName')]"
+                },
+                {
+                  "name": "APP_ENV",
+                  "value": "Prod"
+                },
+                {
+                  "name": "AZURE_AI_SEARCH_CONNECTION_NAME",
+                  "value": "[parameters('aiSearchConnectionName')]"
+                },
+                {
+                  "name": "AZURE_AI_SEARCH_ENDPOINT",
+                  "value": "[parameters('searchEndpoint')]"
+                },
+                {
+                  "name": "AZURE_COGNITIVE_SERVICES",
+                  "value": "https://cognitiveservices.azure.com/.default"
+                },
+                {
+                  "name": "REASONING_MODEL_NAME",
+                  "value": "[parameters('reasoningModelDeploymentName')]"
+                },
+                {
+                  "name": "MCP_SERVER_ENDPOINT",
+                  "value": "[format('https://{0}/mcp', reference(resourceId('Microsoft.App/containerApps', parameters('mcpContainerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+                },
+                {
+                  "name": "MCP_SERVER_NAME",
+                  "value": "MacaeMcpServer"
+                },
+                {
+                  "name": "MCP_SERVER_DESCRIPTION",
+                  "value": "MCP server with greeting, HR, and planning tools"
+                },
+                {
+                  "name": "AZURE_TENANT_ID",
+                  "value": "[tenant().tenantId]"
+                },
+                {
+                  "name": "AZURE_CLIENT_ID",
+                  "value": "[parameters('userAssignedIdentityClientId')]"
+                },
+                {
+                  "name": "SUPPORTED_MODELS",
+                  "value": "[parameters('supportedModels')]"
+                },
+                {
+                  "name": "AZURE_STORAGE_BLOB_URL",
+                  "value": "[parameters('storageBlobUrl')]"
+                },
+                {
+                  "name": "AZURE_AI_PROJECT_ENDPOINT",
+                  "value": "[parameters('aiFoundryProjectEndpoint')]"
+                },
+                {
+                  "name": "AZURE_AI_AGENT_ENDPOINT",
+                  "value": "[parameters('aiFoundryProjectEndpoint')]"
+                },
+                {
+                  "name": "AZURE_AI_AGENT_API_VERSION",
+                  "value": "[parameters('azureAiAgentApiVersion')]"
+                },
+                {
+                  "name": "AZURE_AI_AGENT_PROJECT_CONNECTION_STRING",
+                  "value": "[format('{0}.services.ai.azure.com;{1};{2};{3}', parameters('aiFoundryName'), subscription().subscriptionId, parameters('coreResourceGroupName'), parameters('aiFoundryProjectName'))]"
+                },
+                {
+                  "name": "AZURE_BASIC_LOGGING_LEVEL",
+                  "value": "INFO"
+                },
+                {
+                  "name": "AZURE_PACKAGE_LOGGING_LEVEL",
+                  "value": "WARNING"
+                },
+                {
+                  "name": "AZURE_LOGGING_PACKAGES",
+                  "value": ""
+                },
+                {
+                  "name": "EXTRA_HOSTS",
+                  "value": "[parameters('extraHosts')]"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/containerApps', parameters('mcpContainerAppName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('frontendContainerAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName')))]": {}
+        }
+      },
+      "properties": {
+        "managedEnvironmentId": "[parameters('managedEnvironmentResourceId')]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": false,
+            "targetPort": 3000,
+            "transport": "auto",
+            "allowInsecure": false
+          },
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName'))]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "frontend",
+              "image": "[format('{0}/{1}', parameters('acrLoginServer'), parameters('frontendImage'))]",
+              "resources": {
+                "cpu": "[json('1.0')]",
+                "memory": "2.0Gi"
+              },
+              "env": [
+                {
+                  "name": "WEBSITES_PORT",
+                  "value": "3000"
+                },
+                {
+                  "name": "BACKEND_API_URL",
+                  "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('backendContainerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+                },
+                {
+                  "name": "AUTH_ENABLED",
+                  "value": "false"
+                },
+                {
+                  "name": "PROXY_API_REQUESTS",
+                  "value": "true"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/containerApps', parameters('backendContainerAppName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "macae-reuse-cosmos",
+      "resourceGroup": "[parameters('coreResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "cosmosAccountName": {
+            "value": "[parameters('cosmosAccountName')]"
+          },
+          "databaseName": {
+            "value": "[parameters('cosmosDatabaseName')]"
+          },
+          "containerName": {
+            "value": "[parameters('cosmosContainerName')]"
+          },
+          "partitionKeyPath": {
+            "value": "/session_id"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "5423642790802288064"
+            }
+          },
+          "parameters": {
+            "cosmosAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the EXISTING Cosmos DB account to reuse."
+              }
+            },
+            "databaseName": {
+              "type": "string",
+              "defaultValue": "macae",
+              "metadata": {
+                "description": "Optional. Name of the SQL database to create. MACAE expects \"macae\"."
+              }
+            },
+            "containerName": {
+              "type": "string",
+              "defaultValue": "memory",
+              "metadata": {
+                "description": "Optional. Name of the container to create. MACAE expects \"memory\"."
+              }
+            },
+            "partitionKeyPath": {
+              "type": "string",
+              "defaultValue": "/session_id",
+              "metadata": {
+                "description": "Optional. Partition key path. MACAE uses \"/session_id\"."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+              "apiVersion": "2024-11-15",
+              "name": "[format('{0}/{1}', parameters('cosmosAccountName'), parameters('databaseName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('databaseName')]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-11-15",
+              "name": "[format('{0}/{1}/{2}', parameters('cosmosAccountName'), parameters('databaseName'), parameters('containerName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('containerName')]",
+                  "partitionKey": {
+                    "paths": [
+                      "[parameters('partitionKeyPath')]"
+                    ],
+                    "kind": "Hash",
+                    "version": 2
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosAccountName'), parameters('databaseName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "databaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the created SQL database."
+              },
+              "value": "[parameters('databaseName')]"
+            },
+            "containerName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the created container."
+              },
+              "value": "[parameters('containerName')]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "condition": "[parameters('deployRbac')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "macae-reuse-rbac",
+      "resourceGroup": "[parameters('coreResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "identityPrincipalId": {
+            "value": "[parameters('userAssignedIdentityPrincipalId')]"
+          },
+          "aiFoundryName": {
+            "value": "[parameters('aiFoundryName')]"
+          },
+          "searchServiceName": {
+            "value": "[parameters('searchServiceName')]"
+          },
+          "storageAccountName": {
+            "value": "[parameters('storageAccountName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "18300452380107665445"
+            }
+          },
+          "parameters": {
+            "identityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Principal (object) ID of the backend User-Assigned Identity."
+              }
+            },
+            "aiFoundryName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the EXISTING AI Foundry (Cognitive Services) account."
+              }
+            },
+            "searchServiceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the EXISTING AI Search service."
+              }
+            },
+            "storageAccountName": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the EXISTING Storage account."
+              }
+            }
+          },
+          "variables": {
+            "roleIds": {
+              "foundryUser": "53ca6127-db72-4b80-b1b0-d745d6d5456d",
+              "azureAiDeveloper": "64702f94-c441-49e6-a78b-ef80e0188fee",
+              "cognitiveServicesOpenAiUser": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd",
+              "searchIndexDataContributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
+              "searchServiceContributor": "7ca78c08-252a-4471-8644-bb5ff32d4ba0",
+              "storageBlobDataContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName')), parameters('identityPrincipalId'), variables('roleIds').foundryUser)]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleIds').foundryUser)]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName')), parameters('identityPrincipalId'), variables('roleIds').azureAiDeveloper)]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleIds').azureAiDeveloper)]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName')), parameters('identityPrincipalId'), variables('roleIds').cognitiveServicesOpenAiUser)]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleIds').cognitiveServicesOpenAiUser)]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchServiceName'))]",
+              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('identityPrincipalId'), variables('roleIds').searchIndexDataContributor)]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleIds').searchIndexDataContributor)]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchServiceName'))]",
+              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('identityPrincipalId'), variables('roleIds').searchServiceContributor)]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleIds').searchServiceContributor)]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), parameters('identityPrincipalId'), variables('roleIds').storageBlobDataContributor)]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleIds').storageBlobDataContributor)]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "frontendUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Internal FQDN of the frontend (open from a VM inside the VNet)."
+      },
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('frontendContainerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+    },
+    "backendUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Internal FQDN of the backend API."
+      },
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('backendContainerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+    },
+    "mcpEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Internal MCP endpoint used by the backend."
+      },
+      "value": "[format('https://{0}/mcp', reference(resourceId('Microsoft.App/containerApps', parameters('mcpContainerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+    },
+    "cosmosDatabase": {
+      "type": "string",
+      "metadata": {
+        "description": "Cosmos database created for MACAE."
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('coreResourceGroupName')), 'Microsoft.Resources/deployments', 'macae-reuse-cosmos'), '2025-04-01').outputs.databaseName.value]"
+    }
+  }
+}
