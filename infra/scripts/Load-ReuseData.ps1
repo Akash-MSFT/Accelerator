@@ -122,17 +122,39 @@ if ([string]::IsNullOrWhiteSpace($userPrincipalId)) {
 Write-Host "Using principal id: $userPrincipalId" -ForegroundColor DarkGray
 
 # ---- Python bootstrap ------------------------------------------------------
-# (Windows PowerShell 5.1 has no ternary operator, so use if/else.)
-if (Get-Command python -ErrorAction SilentlyContinue) { $pythonCmd = 'python' } else { $pythonCmd = 'python3' }
+# Find a REAL Python interpreter. On Windows, a bare `python` is often the
+# Microsoft Store App-Execution-Alias stub (prints "Python was not found" and
+# does nothing), so we validate each candidate actually runs before using it.
+function Test-RealPython([string]$exe, [string[]]$prefixArgs) {
+    try {
+        $out = & $exe @prefixArgs '-c' 'import sys; print(sys.executable)' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $out -and ($out -notmatch 'Microsoft.*WindowsApps')) { return $true }
+    } catch { }
+    return $false
+}
+$prevEAP2 = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+$pyExe = $null; $pyArgs = @()
+foreach ($cand in @(@('py', @('-3')), @('python3', @()), @('python', @()))) {
+    if ((Get-Command $cand[0] -ErrorAction SilentlyContinue) -and (Test-RealPython $cand[0] $cand[1])) {
+        $pyExe = $cand[0]; $pyArgs = $cand[1]; break
+    }
+}
+$ErrorActionPreference = $prevEAP2
+if (-not $pyExe) {
+    throw "No working Python interpreter found. Install Python 3 (python.org) or run 'py --version'. If 'python' opens the Microsoft Store, disable the alias under Settings > Apps > Advanced app settings > App execution aliases."
+}
+Write-Host "Using Python: $pyExe $($pyArgs -join ' ')" -ForegroundColor DarkGray
+
 $venvPath = 'infra/scripts/scriptenv'
-if (-not (Test-Path $venvPath)) { & $pythonCmd -m venv $venvPath }
+if (-not (Test-Path $venvPath)) { & $pyExe @pyArgs -m venv $venvPath }
 
 # Resolve the venv interpreter explicitly (Windows = Scripts\python.exe, *nix = bin/python).
-# Don't rely on `Activate.ps1` putting `pip`/`python` on PATH -- call the venv python
-# directly and use `-m pip` so a missing `pip` shim can't break the run.
+# Call the venv python directly with `-m pip` so a missing `pip` shim can't break the run.
 $venvPy = Join-Path $venvPath 'Scripts/python.exe'
 if (-not (Test-Path $venvPy)) { $venvPy = Join-Path $venvPath 'bin/python' }
-if (Test-Path $venvPy) { $pythonCmd = $venvPy }
+if (-not (Test-Path $venvPy)) { throw "venv creation failed at $venvPath (no python found inside)." }
+$pythonCmd = $venvPy
 
 & $pythonCmd -m pip install --quiet --upgrade pip
 & $pythonCmd -m pip install --quiet -r infra/scripts/requirements.txt
