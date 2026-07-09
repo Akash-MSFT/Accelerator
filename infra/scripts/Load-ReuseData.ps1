@@ -95,7 +95,22 @@ if ($PrintHostsHints) {
 
 # ---- Auth check ------------------------------------------------------------
 try { az account show 1>$null 2>$null } catch { az login --identity 1>$null }
+
+# Determine the principal id to stamp on team-config uploads.
+# On the VM we authenticate with a managed identity, so `az ad signed-in-user show`
+# (Graph /me) fails with "only valid with delegated authentication flow". Fall back
+# to the logged-in service principal / managed identity object id, then to zeros.
 $userPrincipalId = az ad signed-in-user show --query id -o tsv 2>$null
+if ([string]::IsNullOrWhiteSpace($userPrincipalId)) {
+    $spAppId = az account show --query user.name -o tsv 2>$null
+    if (-not [string]::IsNullOrWhiteSpace($spAppId)) {
+        $userPrincipalId = az ad sp show --id $spAppId --query id -o tsv 2>$null
+    }
+}
+if ([string]::IsNullOrWhiteSpace($userPrincipalId)) {
+    $userPrincipalId = '00000000-0000-0000-0000-000000000000'
+}
+Write-Host "Using principal id: $userPrincipalId" -ForegroundColor DarkGray
 
 # ---- Python bootstrap ------------------------------------------------------
 # (Windows PowerShell 5.1 has no ternary operator, so use if/else.)
