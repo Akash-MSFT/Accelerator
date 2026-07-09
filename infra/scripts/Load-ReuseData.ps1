@@ -126,9 +126,17 @@ Write-Host "Using principal id: $userPrincipalId" -ForegroundColor DarkGray
 if (Get-Command python -ErrorAction SilentlyContinue) { $pythonCmd = 'python' } else { $pythonCmd = 'python3' }
 $venvPath = 'infra/scripts/scriptenv'
 if (-not (Test-Path $venvPath)) { & $pythonCmd -m venv $venvPath }
-$activate = Join-Path $venvPath 'Scripts/Activate.ps1'
-if (Test-Path $activate) { . $activate }
-pip install --quiet -r infra/scripts/requirements.txt
+
+# Resolve the venv interpreter explicitly (Windows = Scripts\python.exe, *nix = bin/python).
+# Don't rely on `Activate.ps1` putting `pip`/`python` on PATH -- call the venv python
+# directly and use `-m pip` so a missing `pip` shim can't break the run.
+$venvPy = Join-Path $venvPath 'Scripts/python.exe'
+if (-not (Test-Path $venvPy)) { $venvPy = Join-Path $venvPath 'bin/python' }
+if (Test-Path $venvPy) { $pythonCmd = $venvPy }
+
+& $pythonCmd -m pip install --quiet --upgrade pip
+& $pythonCmd -m pip install --quiet -r infra/scripts/requirements.txt
+if ($LASTEXITCODE -ne 0) { throw "pip install failed (requirements.txt)." }
 
 if ($SkipNetworkToggle) {
     Write-Host "SkipNetworkToggle enabled - not touching Storage/Search public network access." -ForegroundColor Cyan
