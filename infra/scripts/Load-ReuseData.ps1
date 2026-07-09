@@ -100,13 +100,22 @@ try { az account show 1>$null 2>$null } catch { az login --identity 1>$null }
 # On the VM we authenticate with a managed identity, so `az ad signed-in-user show`
 # (Graph /me) fails with "only valid with delegated authentication flow". Fall back
 # to the logged-in service principal / managed identity object id, then to zeros.
-$userPrincipalId = az ad signed-in-user show --query id -o tsv 2>$null
-if ([string]::IsNullOrWhiteSpace($userPrincipalId)) {
-    $spAppId = az account show --query user.name -o tsv 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($spAppId)) {
-        $userPrincipalId = az ad sp show --id $spAppId --query id -o tsv 2>$null
+# NOTE: Windows PowerShell 5.1 raises a terminating NativeCommandError when a native
+# command writes to stderr while $ErrorActionPreference='Stop' -- even with 2>$null.
+# Drop to 'Continue' around these probe calls so a failed /me lookup doesn't abort.
+$userPrincipalId = $null
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    $userPrincipalId = az ad signed-in-user show --query id -o tsv 2>$null
+    if ([string]::IsNullOrWhiteSpace($userPrincipalId)) {
+        $spAppId = az account show --query user.name -o tsv 2>$null
+        if (-not [string]::IsNullOrWhiteSpace($spAppId)) {
+            $userPrincipalId = az ad sp show --id $spAppId --query id -o tsv 2>$null
+        }
     }
-}
+} catch { }
+$ErrorActionPreference = $prevEAP
 if ([string]::IsNullOrWhiteSpace($userPrincipalId)) {
     $userPrincipalId = '00000000-0000-0000-0000-000000000000'
 }
