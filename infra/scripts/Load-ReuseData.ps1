@@ -1,6 +1,6 @@
 <#
 ================================================================================
- Load-ReuseData.ps1 — MACAE reuse data loader for the RPSI private landing zone.
+ Load-ReuseData.ps1 - MACAE reuse data loader for the RPSI private landing zone.
 
  Run this FROM the VM inside the VNet (vm-cm02avdd0007) after the Container Apps
  are deployed and images are built. It:
@@ -10,7 +10,7 @@
 
  Differences vs the stock selecting_team_config_and_data script:
    * No azd dependency; all values passed explicitly.
-   * NO public-network toggling — the Storage/Search private endpoints are
+   * NO public-network toggling - the Storage/Search private endpoints are
      already reachable from the VM, and the "Deny Public Access" policy would
      block the toggle anyway. Controlled by -SkipNetworkToggle (default: on).
    * Storage and Search live in a DIFFERENT resource group (core-foundry RG).
@@ -107,7 +107,7 @@ if (Test-Path $activate) { . $activate }
 pip install --quiet -r infra/scripts/requirements.txt
 
 if ($SkipNetworkToggle) {
-    Write-Host "SkipNetworkToggle enabled — not touching Storage/Search public network access." -ForegroundColor Cyan
+    Write-Host "SkipNetworkToggle enabled - not touching Storage/Search public network access." -ForegroundColor Cyan
 }
 
 function Invoke-TeamConfig([string]$id) {
