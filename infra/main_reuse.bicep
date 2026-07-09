@@ -173,7 +173,11 @@ resource mcpContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: true
+        // Internal ingress: only the frontend (same environment) calls the MCP
+        // server. Internal FQDN (*.internal.*) resolves to the env LB 10.22.144.170
+        // for app-to-app; an external FQDN would resolve to a public IP that is
+        // unreachable from inside this internal-only environment.
+        external: false
         targetPort: 9000
         transport: 'auto'
         allowInsecure: false
@@ -235,7 +239,13 @@ resource backendContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: true
+        // Internal ingress: the backend is only called by the frontend (same
+        // environment) and, for the one-time data load, from the in-VNet VM.
+        // Internal FQDN resolves to the env LB 10.22.144.170 for app-to-app and
+        // is reachable from peered VNets via that same private IP. (An external
+        // FQDN resolves to a public IP that the frontend container cannot reach
+        // from inside this internal-only environment -> httpx ConnectError.)
+        external: false
         targetPort: 8000
         transport: 'auto'
         allowInsecure: false
