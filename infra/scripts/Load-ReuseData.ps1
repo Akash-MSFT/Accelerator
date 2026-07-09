@@ -29,7 +29,7 @@
 
  Example:
    ./Load-ReuseData.ps1 `
-     -BackendUrl  https://ca-macae-be-rpsi-dev-weu-01.internal.purplebay-8719396f.westeurope.azurecontainerapps.io `
+     -BackendUrl  https://ca-macae-be-rpsi-dev-weu-01.purplebay-8719396f.westeurope.azurecontainerapps.io `
      -StorageAccount stfoundryrpsidweu01 `
      -SearchService  srch-foundry-rpsi-dev-weu-01 `
      -CoreResourceGroup rg-core-foundry-rpsi-dev-weu-01 `
@@ -98,7 +98,8 @@ try { az account show 1>$null 2>$null } catch { az login --identity 1>$null }
 $userPrincipalId = az ad signed-in-user show --query id -o tsv 2>$null
 
 # ---- Python bootstrap ------------------------------------------------------
-$pythonCmd = (Get-Command python -ErrorAction SilentlyContinue) ? 'python' : 'python3'
+# (Windows PowerShell 5.1 has no ternary operator, so use if/else.)
+if (Get-Command python -ErrorAction SilentlyContinue) { $pythonCmd = 'python' } else { $pythonCmd = 'python3' }
 $venvPath = 'infra/scripts/scriptenv'
 if (-not (Test-Path $venvPath)) { & $pythonCmd -m venv $venvPath }
 $activate = Join-Path $venvPath 'Scripts/Activate.ps1'
