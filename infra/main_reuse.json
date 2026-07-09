@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "13442633058341435170"
+      "templateHash": "15681684532832417202"
     }
   },
   "parameters": {
@@ -201,7 +201,7 @@
     }
   },
   "variables": {
-    "frontendInternalFqdn": "[format('{0}.internal.{1}', parameters('frontendContainerAppName'), parameters('managedEnvironmentDefaultDomain'))]",
+    "frontendInternalFqdn": "[format('{0}.{1}', parameters('frontendContainerAppName'), parameters('managedEnvironmentDefaultDomain'))]",
     "frontendOrigin": "[format('https://{0}', variables('frontendInternalFqdn'))]"
   },
   "resources": [
@@ -519,7 +519,7 @@
         "configuration": {
           "activeRevisionsMode": "Single",
           "ingress": {
-            "external": false,
+            "external": true,
             "targetPort": 3000,
             "transport": "auto",
             "allowInsecure": false
