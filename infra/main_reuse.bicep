@@ -148,8 +148,11 @@ resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
   name: userAssignedIdentityName
 }
 
-// Computed internal FQDNs for CORS (avoids circular dependency on ingress output)
-var frontendInternalFqdn = '${frontendContainerAppName}.internal.${managedEnvironmentDefaultDomain}'
+// Computed FQDNs for CORS (avoids circular dependency on ingress output).
+// Apps use external ingress on the INTERNAL environment (matches the working CKM
+// deployment): the env has no public IP, so this stays private to the VNet but
+// is reachable at the non-".internal" FQDN via the env load balancer 10.22.144.170.
+var frontendInternalFqdn = '${frontendContainerAppName}.${managedEnvironmentDefaultDomain}'
 var frontendOrigin = 'https://${frontendInternalFqdn}'
 
 // ===========================================================================
@@ -170,7 +173,7 @@ resource mcpContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: false
+        external: true
         targetPort: 9000
         transport: 'auto'
         allowInsecure: false
@@ -232,7 +235,7 @@ resource backendContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: false
+        external: true
         targetPort: 8000
         transport: 'auto'
         allowInsecure: false
@@ -335,7 +338,7 @@ resource frontendContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: false
+        external: true
         targetPort: 3000
         transport: 'auto'
         allowInsecure: false
