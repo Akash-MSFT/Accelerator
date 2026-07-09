@@ -171,6 +171,9 @@ function Invoke-TeamConfig([string]$id) {
 }
 function Invoke-Upload([string]$container, [string]$src) {
     Write-Host "Uploading $src -> $container ..." -ForegroundColor Green
+    # upload-batch does NOT auto-create the destination container -> ensure it exists first.
+    az storage container create --account-name $StorageAccount --name $container `
+        --auth-mode login --output none 2>$null
     az storage blob upload-batch --account-name $StorageAccount --destination $container `
         --source $src --auth-mode login --pattern "*" --overwrite --output none
     if ($LASTEXITCODE -ne 0) { throw "Blob upload failed for $container" }
