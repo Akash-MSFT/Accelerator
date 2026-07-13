@@ -17,7 +17,7 @@
     "userAssignedIdentityPrincipalId": { "value": "5729970b-6f81-4dd9-996b-4f433369aaab" },
 
     "acrLoginServer": { "value": "acrdigitalmfgrpsidweu01.azurecr.io" },
-    "backendImage": { "value": "macae-backend:reuse-2" },
+    "backendImage": { "value": "macae-backend:reuse-3" },
     "mcpImage": { "value": "macae-mcp:reuse-2" },
     "frontendImage": { "value": "macae-frontend:reuse-1" },
 

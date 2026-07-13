@@ -24,17 +24,17 @@ from v4.magentic_agents.models.agent_models import MCPConfig, SearchConfig
 def _model_supports_temperature(model_deployment_name: str | None) -> bool:
     """Return False for reasoning models that reject the 'temperature' parameter.
 
-    Reasoning models (o-series, and the gpt-5 reasoning variants such as
-    gpt-5 / gpt-5-mini / gpt-5-nano) only allow the default temperature and
-    return HTTP 400 if it is supplied. Chat-optimized models (e.g. gpt-5-chat,
-    gpt-4.x) do support it.
+    Reasoning models (o-series and the entire gpt-5 family, including
+    gpt-5 / gpt-5-mini / gpt-5-nano / gpt-5-chat) only allow the default
+    temperature and return HTTP 400 if it is supplied. Chat-optimized
+    predecessors (e.g. gpt-4.x) do support it.
     """
     if not model_deployment_name:
         return True
     name = model_deployment_name.strip().lower()
     if name.startswith(("o1", "o3", "o4")):
         return False
-    if name.startswith("gpt-5") and "chat" not in name:
+    if name.startswith("gpt-5"):
         return False
     return True
 
