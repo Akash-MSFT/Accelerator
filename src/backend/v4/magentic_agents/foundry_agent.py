@@ -1,11 +1,13 @@
 """Agent template for building Foundry agents with Azure AI Search, optional MCP tool, and Code Interpreter (agent_framework version)."""
 
+import asyncio
 import logging
 from typing import List, Optional
 
 from agent_framework import (Agent, Message, ChatOptions)
 from agent_framework_azure_ai import \
     AzureAIClient  # Provided by agent_framework
+from azure.core.exceptions import ResourceNotFoundError
 from azure.ai.projects.models import (
     PromptAgentDefinition,
     AzureAISearchTool,
@@ -37,6 +39,44 @@ def _model_supports_temperature(model_deployment_name: str | None) -> bool:
     if name.startswith("gpt-5"):
         return False
     return True
+
+
+# Agents whose stale server-side versions have already been purged in this
+# process. A persistent Foundry agent stores its model settings (including
+# 'temperature') server-side; when the client uses use_latest_version=True it
+# reuses that stored definition. If an older deployment baked in a 'temperature'
+# that the model (e.g. gpt-5-chat) now rejects, every run replays it and fails
+# with HTTP 400. Purging the agent once forces a fresh, corrected version to be
+# created on the next run.
+_purged_agent_names: set[str] = set()
+_purge_lock = asyncio.Lock()
+
+
+async def _purge_stale_server_agent(project_client, agent_name: str | None, logger) -> None:
+    """Delete a pre-existing server-side agent once per process.
+
+    This clears any stale stored settings (such as an unsupported 'temperature')
+    so the next run recreates the agent from the current, corrected definition.
+    """
+    if not project_client or not agent_name or agent_name in _purged_agent_names:
+        return
+    async with _purge_lock:
+        if agent_name in _purged_agent_names:
+            return
+        try:
+            await project_client.agents.delete(agent_name)
+            logger.info(
+                "Purged stale server-side agent '%s'; a fresh version will be created.",
+                agent_name,
+            )
+        except ResourceNotFoundError:
+            logger.info("No pre-existing server-side agent '%s' to purge.", agent_name)
+        except Exception as ex:  # noqa: BLE001 - best-effort cleanup
+            logger.warning(
+                "Could not purge stale server-side agent '%s': %s", agent_name, ex
+            )
+        finally:
+            _purged_agent_names.add(agent_name)
 
 
 class FoundryAgentTemplate(AzureAgentBase):
@@ -287,6 +327,11 @@ class FoundryAgentTemplate(AzureAgentBase):
             else:
                 # MCP path (also used by RAI agent which has no tools)
                 self.logger.info("Initializing agent in MCP mode.")
+                # Remove any stale server-side agent (once per process) so a
+                # fresh version without an unsupported 'temperature' is created.
+                await _purge_stale_server_agent(
+                    self.project_client, self.agent_name, self.logger
+                )
                 tools = await self._collect_tools()
                 self._agent = Agent(
                     id=self.get_agent_id(),
