@@ -1697,6 +1697,184 @@ Set `USE_CHAT_HISTORY_ENABLED=false` in the App Service environment. `chat_servi
 
 ---
 
+## 13. Improvement Plan for Context Awareness and Error Recovery
+
+This section is a practical implementation guide for two customer-facing gaps:
+
+1. The assistant cannot "see" adjacent UI state unless that state is passed as input.
+2. Some failures return generic errors and can break retry continuity.
+
+The goal is to give your team a starting point, a recommended approach, and a step-by-step path to implement and validate improvements independently.
+
+---
+
+### 13.1 Where to start
+
+Start with a short baseline run before code changes. This gives you objective before/after evidence and helps avoid over-tuning.
+
+1. Re-run 8 to 10 representative prompts from the customer transcript and record outcomes:
+   - Completed without clarification loop
+   - Clarification asked
+   - Error shown
+   - Context preserved after retry
+2. Pull telemetry for `/api/chat` failures and response patterns from Application Insights:
+   - `ChatRequestError`
+   - `ChatResponseCompleted`
+   - HTTP 429/500 rates
+3. Tag each failed turn into one of two buckets:
+   - Missing runtime context input
+   - Runtime/tooling failure with weak recovery
+
+Keep this baseline as your acceptance comparison for the changes in Sections 13.3 and 13.4.
+
+---
+
+### 13.2 Recommended approach
+
+Implement in two phases instead of a large rewrite.
+
+| Phase | Focus | Outcome |
+|---|---|---|
+| Phase A | Context awareness contract | Assistant gets explicit, structured page context from UI and can answer "summarize what I am seeing" requests more reliably |
+| Phase B | Error and retry continuity | User receives actionable errors and "try again" preserves intent and conversation state for transient failures |
+
+This phased approach keeps blast radius low and lets you ship measurable improvements quickly.
+
+---
+
+### 13.3 Context awareness implementation steps
+
+The current system behavior is expected: the model only sees what is sent in the prompt/tool context. It does not inspect neighboring browser panels by default.
+
+#### 13.3.1 Define a minimal UI-to-chat context contract
+
+Add a small JSON object to the chat request payload, for example:
+
+```json
+{
+  "conversation_id": "...",
+  "query": "Summarize the report on screen",
+  "screen_context": {
+    "active_report": "KPI overview",
+    "selected_filters": {
+      "start_date": "2026-07-01",
+      "end_date": "2026-07-20",
+      "topic": "billing",
+      "sentiment": "negative"
+    },
+    "visible_metrics": [
+      "Total calls: 1245",
+      "Complaint rate: 8.3%"
+    ]
+  }
+}
+```
+
+Guidance:
+
+- Keep this object compact and deterministic.
+- Pass identifiers and values, not raw screenshots, unless your use case truly needs visual understanding.
+
+#### 13.3.2 Thread the new field through the backend API
+
+Update [src/api/api/api_routes.py](src/api/api/api_routes.py) in the `/chat` handler to read `screen_context` from request JSON and pass it into `ChatService`.
+
+Then update [src/api/services/chat_service.py](src/api/services/chat_service.py) so `stream_chat_request` and `stream_openai_text` accept an optional `screen_context` parameter.
+
+#### 13.3.3 Inject context into the model input in a controlled format
+
+In [src/api/services/chat_service.py](src/api/services/chat_service.py), prepend a short, structured preamble to the user query when `screen_context` is present:
+
+```text
+RUNTIME_SCREEN_CONTEXT:
+<compact JSON>
+
+USER_QUERY:
+<original query>
+```
+
+Guidance:
+
+- Serialize to compact JSON to reduce token overhead.
+- Truncate or drop low-value keys if context grows too large.
+- Keep user query unchanged after the context block.
+
+#### 13.3.4 Tune agent instructions for this behavior
+
+In [infra/scripts/agent_scripts/01_create_agents.py](infra/scripts/agent_scripts/01_create_agents.py), add one explicit instruction line for the conversation agent:
+
+- If `RUNTIME_SCREEN_CONTEXT` is present, use it as first-class grounding input before asking clarifying questions.
+
+This reduces unnecessary clarification loops for simple requests such as "summarize what I am viewing".
+
+#### 13.3.5 Add validation tests
+
+Add API-level tests to verify:
+
+1. Requests with `screen_context` do not fail schema parsing.
+2. The context block reaches `ChatService`.
+3. Summary prompts produce a best-effort summary when context is sufficient.
+
+---
+
+### 13.4 Error handling and context continuity implementation steps
+
+Current behavior in [src/api/services/chat_service.py](src/api/services/chat_service.py) invalidates cache/thread mapping on exceptions. This protects against corrupted sessions but can also cause context loss after transient failures.
+
+#### 13.4.1 Classify errors as transient vs non-transient
+
+In `stream_openai_text`, classify failures into two groups:
+
+- Transient: timeouts, rate limits, network resets, temporary upstream 5xx
+- Non-transient: invalid request shape, auth/permission failures, deterministic tool errors
+
+Only clear cached thread context for non-transient failures.
+
+#### 13.4.2 Preserve thread mapping for transient failures
+
+Replace unconditional cache invalidation with conditional logic:
+
+1. On transient failure, keep `conversation_id -> thread_conversation_id`.
+2. Return a structured error payload that tells the client retry is safe.
+3. On non-transient failure, invalidate as today.
+
+Suggested response contract for stream errors:
+
+```json
+{
+  "error": {
+    "code": "TRANSIENT_UPSTREAM_ERROR",
+    "message": "Temporary issue while processing the request. Please retry.",
+    "retryable": true
+  }
+}
+```
+
+#### 13.4.3 Add one automatic server-side retry for known transient calls
+
+For safe idempotent retry points (for example first call after idle connection), add one bounded retry with jitter.
+
+Guidance:
+
+- Retry once only.
+- Use a short jitter window.
+- Emit telemetry dimension `retry_attempt=1`.
+
+This pattern already exists in principle in [src/api/api/history_routes.py](src/api/api/history_routes.py) for `/history/delete_all` and can be mirrored for chat transient paths.
+
+#### 13.4.4 Improve user-facing errors
+
+Replace generic "an error occurred" messages with actionable text and stable error codes.
+
+In [src/api/api/api_routes.py](src/api/api/api_routes.py) and [src/api/services/chat_service.py](src/api/services/chat_service.py):
+
+1. Return a concise message suitable for end users.
+2. Include a machine-readable code for support and analytics.
+3. Keep internal exception details in logs only.
+
+
+---
+
 *Document was crafted for KT session on 2026-07-10. Code references are based on the current state of the `main` branch of `microsoft/Conversation-Knowledge-Mining-Solution-Accelerator`.*
 
 ---
